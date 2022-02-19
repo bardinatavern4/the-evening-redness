@@ -1,5 +1,5 @@
 /datum/component/storage
-	screen_max_columns = INFINITY
+	screen_max_columns = 8
 	screen_max_rows = 8
 	screen_pixel_x = 0
 	screen_pixel_y = 0
@@ -14,7 +14,7 @@
 	)
 	/// Exactly what it sounds like, this makes it use the new RE4-like inventory system
 	var/tetris = FALSE
-	var/static/list/underlay_images_by_size = list()
+	var/static/list/mutable_appearance/underlay_appearances_by_size = list()
 	var/list/screen_loc_to_item
 	var/list/item_to_screen_locs
 	var/maximum_depth = 1
@@ -45,43 +45,64 @@
 	else
 		rows = screen_max_rows
 		columns = screen_max_columns
-	return standard_orient_objs(screen_max_rows, screen_max_columns, numbered_contents)
+	return standard_orient_objs(rows, columns, numbered_contents)
 
 /datum/component/storage/standard_orient_objs(rows = 0, cols = 0, list/obj/item/numerical_display_contents)
 	var/datum/component/storage/master = master()
 	boxes.screen_loc = "[screen_start_x]:[screen_pixel_x],[screen_start_y]:[screen_pixel_y] to [screen_start_x+cols-1]:[screen_pixel_x],[screen_start_y-rows+1]:[screen_pixel_y]"
-	if(!master.tetris)
+	if(master.tetris)
 		var/box_size = world.icon_size
 		if(islist(numerical_display_contents))
+			var/mutable_appearance/bound_underlay
+			var/screen_loc
+			var/screen_x
+			var/screen_y
+			var/screen_pixel_x
+			var/screen_pixel_y
 			for(var/index in numerical_display_contents)
 				var/datum/numbered_display/numbered_display = numerical_display_contents[index]
-				numbered_display.sample_object.pixel_x = round(numbered_display.sample_object.base_pixel_x + (box_size/2 * numbered_display.sample_object.tetris_width), 1)
-				numbered_display.sample_object.pixel_y = round(numbered_display.sample_object.base_pixel_y + (box_size/2 * numbered_display.sample_object.tetris_height), 1)
-				numbered_display.sample_object.mouse_opacity = MOUSE_OPACITY_OPAQUE
-				var/image/bound_underlay = LAZYACCESS(underlay_images_by_size, "[numbered_display.sample_object.tetris_width]x[numbered_display.sample_object.tetris_height]")
+				var/obj/item/stored_item = numbered_display.sample_object
+				stored_item.mouse_opacity = MOUSE_OPACITY_OPAQUE
+				bound_underlay = LAZYACCESS(underlay_appearances_by_size, "[stored_item.tetris_width]x[stored_item.tetris_height]")
 				if(!bound_underlay)
-					bound_underlay = image()
-					bound_underlay.transform.Scale(numbered_display.sample_object.tetris_width/box_size,numbered_display.sample_object.tetris_height/box_size)
-					underlay_images_by_size["[numbered_display.sample_object.tetris_width]x[numbered_display.sample_object.tetris_height]"] = bound_underlay
-				numbered_display.sample_object.underlays += bound_underlay
-				numbered_display.sample_object.screen_loc = LAZYACCESSASSOC(master.item_to_screen_locs, numbered_display.sample_object, 1)
-				numbered_display.sample_object.maptext = MAPTEXT("<font color='white'>[(numbered_display.number > 1)? "[numbered_display.number]" : ""]</font>")
-				numbered_display.sample_object.plane = ABOVE_HUD_PLANE
+					bound_underlay = mutable_appearance(icon = 'modular_septic/icons/hud/quake/storage.dmi', icon_state = "block")
+					bound_underlay.transform = bound_underlay.transform.Scale(stored_item.tetris_width,stored_item.tetris_height)
+					underlay_appearances_by_size["[stored_item.tetris_width]x[stored_item.tetris_height]"] = bound_underlay
+				stored_item.underlays += bound_underlay
+				screen_loc = LAZYACCESSASSOC(master.item_to_screen_locs, stored_item, 1)
+				screen_x = text2num(copytext(screen_loc, 1, findtext(screen_loc, ",")))
+				screen_y = text2num(copytext(screen_loc, findtext(screen_loc, ",") + 1))
+				screen_pixel_x = (box_size/2)*(stored_item.tetris_width-1)
+				screen_pixel_y = (box_size/2)*(stored_item.tetris_height-1)
+				stored_item.screen_loc = "[screen_x]:[screen_pixel_x],[screen_y]:[screen_pixel_y]"
+				stored_item.plane = ABOVE_HUD_PLANE
+				stored_item.maptext = MAPTEXT("<font color='white'>[(numbered_display.number > 1)? "[numbered_display.number]" : ""]</font>")
 		else
 			var/atom/real_location = real_location()
+			var/mutable_appearance/bound_underlay
+			var/screen_loc
+			var/screen_x
+			var/screen_y
+			var/screen_pixel_x
+			var/screen_pixel_y
 			for(var/obj/item/stored_item in real_location)
-				if(QDELETED(stored_object))
+				if(QDELETED(stored_item))
 					continue
 				stored_item.mouse_opacity = MOUSE_OPACITY_OPAQUE
-				var/image/bound_underlay = LAZYACCESS(underlay_images_by_size, "[stored_item.tetris_width]x[stored_item.tetris_height]")
+				bound_underlay = LAZYACCESS(underlay_appearances_by_size, "[stored_item.tetris_width]x[stored_item.tetris_height]")
 				if(!bound_underlay)
-					bound_underlay = image()
-					bound_underlay.transform.Scale(stored_item.tetris_width/box_size,stored_item.tetris_height/box_size)
-					underlay_images_by_size["[stored_item.tetris_width]x[stored_item.tetris_height]"] = bound_underlay
+					bound_underlay = mutable_appearance(icon = 'modular_septic/icons/hud/quake/storage.dmi', icon_state = "block")
+					bound_underlay.transform = bound_underlay.transform.Scale(stored_item.tetris_width,stored_item.tetris_height)
+					underlay_appearances_by_size["[stored_item.tetris_width]x[stored_item.tetris_height]"] = bound_underlay
 				stored_item.underlays += bound_underlay
-				stored_item.screen_loc = LAZYACCESSASSOC(master.item_to_screen_locs, stored_item, 1)
-				stored_item.maptext = ""
+				screen_loc = LAZYACCESSASSOC(master.item_to_screen_locs, stored_item, 1)
+				screen_x = text2num(copytext(screen_loc, 1, findtext(screen_loc, ",")))
+				screen_y = text2num(copytext(screen_loc, findtext(screen_loc, ",") + 1))
+				screen_pixel_x = (box_size/2)*(stored_item.tetris_width-1)
+				screen_pixel_y = (box_size/2)*(stored_item.tetris_height-1)
+				stored_item.screen_loc = "[screen_x]:[screen_pixel_x],[screen_y]:[screen_pixel_y]"
 				stored_item.plane = ABOVE_HUD_PLANE
+				stored_item.maptext = ""
 		closer.screen_loc = "[screen_start_x]:[screen_pixel_x],[screen_start_y+1]:[screen_pixel_y]"
 		return
 	var/cx = screen_start_x
@@ -148,7 +169,6 @@
 	var/atom/real_location = real_location()
 	if(real_location == storing.loc)
 		return FALSE //Means the item is already in the storage item
-	var/list/modifiers = params2list(params)
 	if(locked)
 		if(user && !stop_messages)
 			host.add_fingerprint(user)
@@ -229,10 +249,23 @@
 		parent.add_fingerprint(user)
 	return master.handle_item_insertion_from_slave(src, storing, prevent_warning, user, params = params)
 
-//This proc is called when you want to place an item into the storage item
-/datum/component/storage/attackby(datum/source, obj/item/attacking_item, mob/user, params)
+/datum/component/storage/proc/signal_take_obj(datum/source, atom/movable/AM, new_loc, force = FALSE)
 	SIGNAL_HANDLER
 
+	if(!(AM in real_location()))
+		return FALSE
+	return remove_from_storage(AM, new_loc)
+
+/datum/component/storage/remove_from_storage(atom/movable/removed, atom/new_location)
+	if(!istype(removed))
+		return FALSE
+	var/datum/component/storage/concrete/master = master()
+	if(!istype(master))
+		return FALSE
+	return master.remove_from_storage(removed, new_location)
+
+//This proc is called when you want to place an item into the storage item
+/datum/component/storage/attackby(datum/source, obj/item/attacking_item, mob/user, params)
 	if(istype(attacking_item, /obj/item/hand_labeler))
 		var/obj/item/hand_labeler/labeler = attacking_item
 		if(labeler.mode)
@@ -245,7 +278,7 @@
 		if(LAZYLEN(real_location.contents) >= max_items) //don't use items on the backpack if they don't fit
 			return TRUE
 		return FALSE
-	handle_item_insertion(attacking_item, FALSE, user, params = params)
+	return handle_item_insertion(attacking_item, FALSE, user, params = params)
 
 /datum/component/storage/proc/on_equipped(obj/item/source, mob/user, slot)
 	SIGNAL_HANDLER
@@ -263,11 +296,11 @@
 	if(!istype(storing) || !istype(user) || !CHECK_BITFIELD(storage_flags, STORAGE_NO_WORN_ACCESS|STORAGE_NO_EQUIPPED_ACCESS))
 		return TRUE
 
-	if(storage_flags & STORAGE_NO_EQUIPPED_ACCESS && (storing.item_flags & IN_INVENTORY))
+	if((storage_flags & STORAGE_NO_EQUIPPED_ACCESS) && (storing.item_flags & IN_INVENTORY))
 		if(!no_message)
 			to_chat(user, span_warning("[storing] is too bulky! I need to set it down before I can access it's contents!"))
 		return FALSE
-	else if(storage_flags & STORAGE_NO_WORN_ACCESS && (storing.item_flags & IN_INVENTORY) && !(storing in user.held_items))
+	else if((storage_flags & STORAGE_NO_WORN_ACCESS) && (storing.item_flags & IN_INVENTORY) && !(storing in user.held_items))
 		if(!no_message)
 			to_chat(user, span_warning("My arms aren't long enough to reach into [storing] while wearing it!"))
 		return FALSE
@@ -286,26 +319,25 @@
 			to_chat(user, span_warning("My arms aren't long enough to reach into [storing] while wearing it!"))
 		return FALSE
 
-/datum/component/storage/proc/can_user_take(obj/item/stored, mob/user, no_message = FALSE)
-	. = FALSE
-	if(!worn_check(parent, user, no_message))
+/datum/component/storage/proc/can_user_take(obj/item/stored, mob/user, worn_check = FALSE, no_message = FALSE)
+	if(worn_check && !worn_check(parent, user, no_message))
 		return FALSE
 	if(!istype(src, /datum/component/storage/concrete/organ))
 		var/atom/real_location = real_location()
 		var/atom/recursive_loc = real_location?.loc
 		var/depth = 0
 		while(isatom(recursive_loc) && !isturf(recursive_loc) && !isarea(recursive_loc))
-			depth++
 			var/datum/component/storage/biggerfish = recursive_loc.GetComponent(/datum/component/storage)
 			if(biggerfish && !istype(biggerfish, /datum/component/storage/concrete/organ))
+				depth++
 				if(!biggerfish.worn_check(biggerfish.parent, user, TRUE))
 					if(!no_message)
 						to_chat(user, span_warning("[recursive_loc] is in the way!"))
-					return
+					return FALSE
 				else if(biggerfish.maximum_depth < depth)
 					if(!no_message)
 						to_chat(user, span_warning("[recursive_loc] is in the way!"))
-					return
+					return FALSE
 			recursive_loc = recursive_loc.loc
 	return TRUE
 

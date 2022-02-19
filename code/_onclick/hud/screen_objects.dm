@@ -495,7 +495,12 @@
 	if(master)
 		var/obj/item/I = usr.get_active_held_item()
 		if(I)
+			/* SEPTIC EDIT REMOVAL
 			master.attackby(null, I, usr, params)
+			*/
+			//SEPTIC EDIT BEGIN
+			master.attackby(src, I, usr, params)
+			//SEPTIC EDIT END
 	return TRUE
 
 /atom/movable/screen/throw_catch
