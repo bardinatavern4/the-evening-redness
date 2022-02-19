@@ -64,7 +64,7 @@
 	if(fov_holder)
 		screenmob.client?.screen |= fov_holder
 
-/datum/hud/proc/get_action_buttons_icons()
+/datum/hud/get_action_buttons_icons()
 	. = list()
 	.["bg_icon"] = 'modular_septic/icons/hud/quake/actions.dmi'
 	.["bg_state"] = "based"
