@@ -15,8 +15,8 @@
 	/// Exactly what it sounds like, this makes it use the new RE4-like inventory system
 	var/tetris = FALSE
 	var/static/list/mutable_appearance/underlay_appearances_by_size = list()
-	var/list/screen_loc_to_item
-	var/list/item_to_screen_locs
+	var/list/coordinates_to_item
+	var/list/item_to_coordinates
 	var/maximum_depth = 1
 	var/storage_flags = NONE
 
@@ -24,7 +24,7 @@
 	. = ..()
 	if(!.)
 		return
-	RegisterSignal(parent, COMSIG_STORAGE_CAN_USER_TAKE, .proc/can_user_take)
+	RegisterSignal(parent, COMSIG_STORAGE_BLOCK_USER_TAKE, .proc/should_block_user_take)
 
 /datum/component/storage/orient2hud()
 	var/atom/real_location = real_location()
@@ -51,14 +51,15 @@
 	var/datum/component/storage/master = master()
 	boxes.screen_loc = "[screen_start_x]:[screen_pixel_x],[screen_start_y]:[screen_pixel_y] to [screen_start_x+cols-1]:[screen_pixel_x],[screen_start_y-rows+1]:[screen_pixel_y]"
 	if(master.tetris)
-		var/box_size = world.icon_size
+		var/mutable_appearance/bound_underlay
+		var/screen_loc
+		var/screen_x
+		var/remaining_x
+		var/screen_y
+		var/remaining_y
+		var/screen_pixel_x
+		var/screen_pixel_y
 		if(islist(numerical_display_contents))
-			var/mutable_appearance/bound_underlay
-			var/screen_loc
-			var/screen_x
-			var/screen_y
-			var/screen_pixel_x
-			var/screen_pixel_y
 			for(var/index in numerical_display_contents)
 				var/datum/numbered_display/numbered_display = numerical_display_contents[index]
 				var/obj/item/stored_item = numbered_display.sample_object
@@ -69,22 +70,16 @@
 					bound_underlay.transform = bound_underlay.transform.Scale(stored_item.tetris_width,stored_item.tetris_height)
 					underlay_appearances_by_size["[stored_item.tetris_width]x[stored_item.tetris_height]"] = bound_underlay
 				stored_item.underlays += bound_underlay
-				screen_loc = LAZYACCESSASSOC(master.item_to_screen_locs, stored_item, 1)
+				screen_loc = LAZYACCESSASSOC(master.item_to_coordinates, stored_item, 1)
 				screen_x = text2num(copytext(screen_loc, 1, findtext(screen_loc, ",")))
 				screen_y = text2num(copytext(screen_loc, findtext(screen_loc, ",") + 1))
-				screen_pixel_x = (box_size/2)*(stored_item.tetris_width-1)
-				screen_pixel_y = (box_size/2)*(stored_item.tetris_height-1)
+				screen_pixel_x = src.screen_pixel_x+(world.icon_size/2)*(stored_item.tetris_width-1)+FLOOR(remaining_x*world.icon_size, 1)
+				screen_pixel_y = src.screen_pixel_y+(world.icon_size/2)*(stored_item.tetris_height-1)+FLOOR(remaining_y*world.icon_size, 1)
 				stored_item.screen_loc = "[screen_x]:[screen_pixel_x],[screen_y]:[screen_pixel_y]"
 				stored_item.plane = ABOVE_HUD_PLANE
 				stored_item.maptext = MAPTEXT("<font color='white'>[(numbered_display.number > 1)? "[numbered_display.number]" : ""]</font>")
 		else
 			var/atom/real_location = real_location()
-			var/mutable_appearance/bound_underlay
-			var/screen_loc
-			var/screen_x
-			var/screen_y
-			var/screen_pixel_x
-			var/screen_pixel_y
 			for(var/obj/item/stored_item in real_location)
 				if(QDELETED(stored_item))
 					continue
@@ -95,15 +90,15 @@
 					bound_underlay.transform = bound_underlay.transform.Scale(stored_item.tetris_width,stored_item.tetris_height)
 					underlay_appearances_by_size["[stored_item.tetris_width]x[stored_item.tetris_height]"] = bound_underlay
 				stored_item.underlays += bound_underlay
-				screen_loc = LAZYACCESSASSOC(master.item_to_screen_locs, stored_item, 1)
+				screen_loc = LAZYACCESSASSOC(master.item_to_coordinates, stored_item, 1)
 				screen_x = text2num(copytext(screen_loc, 1, findtext(screen_loc, ",")))
 				screen_y = text2num(copytext(screen_loc, findtext(screen_loc, ",") + 1))
-				screen_pixel_x = (box_size/2)*(stored_item.tetris_width-1)
-				screen_pixel_y = (box_size/2)*(stored_item.tetris_height-1)
+				screen_pixel_x = src.screen_pixel_x+(world.icon_size/2)*(stored_item.tetris_width-1)+FLOOR(remaining_x*world.icon_size, 1)
+				screen_pixel_y = src.screen_pixel_y+(world.icon_size/2)*(stored_item.tetris_height-1)+FLOOR(remaining_y*world.icon_size, 1)
 				stored_item.screen_loc = "[screen_x]:[screen_pixel_x],[screen_y]:[screen_pixel_y]"
 				stored_item.plane = ABOVE_HUD_PLANE
 				stored_item.maptext = ""
-		closer.screen_loc = "[screen_start_x]:[screen_pixel_x],[screen_start_y+1]:[screen_pixel_y]"
+		closer.screen_loc = "[src.screen_start_x]:[src.screen_pixel_x],[src.screen_start_y+1]:[src.screen_pixel_y]"
 		return
 	var/cx = screen_start_x
 	var/cy = screen_start_y
@@ -160,7 +155,7 @@
 		return FALSE
 	return handle_item_insertion(storing, silent, user, params = params)
 
-/datum/component/storage/can_be_inserted(obj/item/storing, stop_messages, mob/user, worn_check = FALSE, params)
+/datum/component/storage/can_be_inserted(obj/item/storing, stop_messages, mob/user, worn_check = FALSE, params, storage_click = FALSE)
 	if(!istype(storing) || (storing.item_flags & ABSTRACT))
 		return FALSE //Not an item
 	if(storing == parent)
@@ -236,9 +231,9 @@
 	var/datum/component/storage/concrete/master = master()
 	if(!istype(master))
 		return FALSE
-	return master.slave_can_insert_object(src, storing, stop_messages, user, params = params)
+	return master.slave_can_insert_object(src, storing, stop_messages, user, params = params, storage_click = storage_click)
 
-/datum/component/storage/handle_item_insertion(obj/item/storing, prevent_warning = FALSE, mob/user, datum/component/storage/remote, params)
+/datum/component/storage/handle_item_insertion(obj/item/storing, prevent_warning = FALSE, mob/user, datum/component/storage/remote, params, storage_click = FALSE)
 	var/atom/parent = src.parent
 	var/datum/component/storage/concrete/master = master()
 	if(!istype(master))
@@ -247,14 +242,12 @@
 		prevent_warning = TRUE
 	if(user)
 		parent.add_fingerprint(user)
-	return master.handle_item_insertion_from_slave(src, storing, prevent_warning, user, params = params)
+	return master.handle_item_insertion_from_slave(src, storing, prevent_warning, user, params = params, storage_click = storage_click)
 
-/datum/component/storage/proc/signal_take_obj(datum/source, atom/movable/AM, new_loc, force = FALSE)
-	SIGNAL_HANDLER
-
-	if(!(AM in real_location()))
+/datum/component/storage/signal_take_obj(datum/source, atom/movable/taken, new_loc, force = FALSE)
+	if(!(taken in real_location()))
 		return FALSE
-	return remove_from_storage(AM, new_loc)
+	return remove_from_storage(taken, new_loc)
 
 /datum/component/storage/remove_from_storage(atom/movable/removed, atom/new_location)
 	if(!istype(removed))
@@ -265,7 +258,7 @@
 	return master.remove_from_storage(removed, new_location)
 
 //This proc is called when you want to place an item into the storage item
-/datum/component/storage/attackby(datum/source, obj/item/attacking_item, mob/user, params)
+/datum/component/storage/attackby(datum/source, obj/item/attacking_item, mob/user, params, storage_click = FALSE)
 	if(istype(attacking_item, /obj/item/hand_labeler))
 		var/obj/item/hand_labeler/labeler = attacking_item
 		if(labeler.mode)
@@ -273,12 +266,12 @@
 	. = TRUE //no afterattack
 	if(iscyborg(user))
 		return
-	if(!can_be_inserted(attacking_item, FALSE, user, params = params))
+	if(!can_be_inserted(attacking_item, FALSE, user, params = params, storage_click = storage_click))
 		var/atom/real_location = real_location()
 		if(LAZYLEN(real_location.contents) >= max_items) //don't use items on the backpack if they don't fit
 			return TRUE
 		return FALSE
-	return handle_item_insertion(attacking_item, FALSE, user, params = params)
+	return handle_item_insertion(attacking_item, FALSE, user, params = params, storage_click = storage_click)
 
 /datum/component/storage/proc/on_equipped(obj/item/source, mob/user, slot)
 	SIGNAL_HANDLER
@@ -319,9 +312,9 @@
 			to_chat(user, span_warning("My arms aren't long enough to reach into [storing] while wearing it!"))
 		return FALSE
 
-/datum/component/storage/proc/can_user_take(obj/item/stored, mob/user, worn_check = FALSE, no_message = FALSE)
+/datum/component/storage/proc/should_block_user_take(obj/item/stored, mob/user, worn_check = FALSE, no_message = FALSE)
 	if(worn_check && !worn_check(parent, user, no_message))
-		return FALSE
+		return TRUE
 	if(!istype(src, /datum/component/storage/concrete/organ))
 		var/atom/real_location = real_location()
 		var/atom/recursive_loc = real_location?.loc
@@ -333,13 +326,13 @@
 				if(!biggerfish.worn_check(biggerfish.parent, user, TRUE))
 					if(!no_message)
 						to_chat(user, span_warning("[recursive_loc] is in the way!"))
-					return FALSE
+					return TRUE
 				else if(biggerfish.maximum_depth < depth)
 					if(!no_message)
 						to_chat(user, span_warning("[recursive_loc] is in the way!"))
-					return FALSE
+					return TRUE
 			recursive_loc = recursive_loc.loc
-	return TRUE
+	return FALSE
 
 /datum/component/storage/proc/get_carry_weight()
 	. = 0

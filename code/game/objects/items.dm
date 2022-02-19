@@ -483,11 +483,11 @@ GLOBAL_DATUM_INIT(fire_overlay, /mutable_appearance, mutable_appearance('icons/e
 	*/
 	//SEPTIC EDIT BEGIN
 	if(stored_in)
-		if(!SEND_SIGNAL(stored_in, COMSIG_STORAGE_CAN_USER_TAKE, src, user, TRUE))
+		if(SEND_SIGNAL(stored_in, COMSIG_STORAGE_BLOCK_USER_TAKE, src, user, TRUE))
 			return
 		SEND_SIGNAL(stored_in, COMSIG_TRY_STORAGE_TAKE, src, user.loc, FALSE)
 	else
-		if(!SEND_SIGNAL(loc, COMSIG_STORAGE_CAN_USER_TAKE, src, user, TRUE))
+		if(SEND_SIGNAL(loc, COMSIG_STORAGE_BLOCK_USER_TAKE, src, user, TRUE))
 			return
 		SEND_SIGNAL(loc, COMSIG_TRY_STORAGE_TAKE, src, user.loc, FALSE)
 	//SEPTIC EDIT END
