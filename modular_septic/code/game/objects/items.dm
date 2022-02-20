@@ -17,9 +17,9 @@
 		skill_parrying = null
 	//we don't want items with invalid tetris inventory vars
 	if(tetris_width <= 0)
-		tetris_width = w_class
+		tetris_width = (w_class * world.icon_size)
 	if(tetris_height <= 0)
-		tetris_height = w_class
+		tetris_height = (w_class * world.icon_size)
 
 // organ storage stuff
 /obj/item/Destroy()

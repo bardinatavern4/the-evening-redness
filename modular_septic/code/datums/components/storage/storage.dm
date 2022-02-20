@@ -14,13 +14,16 @@
 	)
 	/// Exactly what it sounds like, this makes it use the new RE4-like inventory system
 	var/tetris = FALSE
+	var/static/tetris_box_size
 	var/static/list/mutable_appearance/underlay_appearances_by_size = list()
-	var/list/coordinates_to_item
-	var/list/item_to_coordinates
+	var/list/tetris_coordinates_to_item
+	var/list/item_to_tetris_coordinates
 	var/maximum_depth = 1
 	var/storage_flags = NONE
 
 /datum/component/storage/Initialize(datum/component/storage/concrete/master)
+	if(!tetris_box_size)
+		tetris_box_size = world.icon_size
 	. = ..()
 	if(!.)
 		return
@@ -54,9 +57,7 @@
 		var/mutable_appearance/bound_underlay
 		var/screen_loc
 		var/screen_x
-		var/remaining_x
 		var/screen_y
-		var/remaining_y
 		var/screen_pixel_x
 		var/screen_pixel_y
 		if(islist(numerical_display_contents))
@@ -67,14 +68,19 @@
 				bound_underlay = LAZYACCESS(underlay_appearances_by_size, "[stored_item.tetris_width]x[stored_item.tetris_height]")
 				if(!bound_underlay)
 					bound_underlay = mutable_appearance(icon = 'modular_septic/icons/hud/quake/storage.dmi', icon_state = "block")
-					bound_underlay.transform = bound_underlay.transform.Scale(stored_item.tetris_width,stored_item.tetris_height)
+					bound_underlay.transform = bound_underlay.transform.Scale(stored_item.tetris_width/world.icon_size,stored_item.tetris_height/world.icon_size)
 					underlay_appearances_by_size["[stored_item.tetris_width]x[stored_item.tetris_height]"] = bound_underlay
 				stored_item.underlays += bound_underlay
-				screen_loc = LAZYACCESSASSOC(master.item_to_coordinates, stored_item, 1)
-				screen_x = text2num(copytext(screen_loc, 1, findtext(screen_loc, ",")))
-				screen_y = text2num(copytext(screen_loc, findtext(screen_loc, ",") + 1))
-				screen_pixel_x = src.screen_pixel_x+(world.icon_size/2)*(stored_item.tetris_width-1)+FLOOR(remaining_x*world.icon_size, 1)
-				screen_pixel_y = src.screen_pixel_y+(world.icon_size/2)*(stored_item.tetris_height-1)+FLOOR(remaining_y*world.icon_size, 1)
+				screen_loc = LAZYACCESSASSOC(master.item_to_tetris_coordinates, stored_item, 1)
+				screen_loc = master.tetris_coordinates_to_screen_loc(screen_loc)
+				screen_x = copytext(screen_loc, 1, findtext(screen_loc, ","))
+				screen_pixel_x = text2num(copytext(screen_x, findtext(screen_x, ":") + 1))
+				screen_pixel_x += src.screen_pixel_x+(world.icon_size/2)*((stored_item.tetris_width/world.icon_size)-1)
+				screen_x = text2num(copytext(screen_x, 1, findtext(screen_x, ":")))
+				screen_y = copytext(screen_loc, findtext(screen_loc, ",") + 1)
+				screen_pixel_y = text2num(copytext(screen_y, findtext(screen_y, ":") + 1))
+				screen_pixel_y += src.screen_pixel_y+(world.icon_size/2)*((stored_item.tetris_height/world.icon_size)-1)
+				screen_y = text2num(copytext(screen_y, 1, findtext(screen_y, ":")))
 				stored_item.screen_loc = "[screen_x]:[screen_pixel_x],[screen_y]:[screen_pixel_y]"
 				stored_item.plane = ABOVE_HUD_PLANE
 				stored_item.maptext = MAPTEXT("<font color='white'>[(numbered_display.number > 1)? "[numbered_display.number]" : ""]</font>")
@@ -87,14 +93,19 @@
 				bound_underlay = LAZYACCESS(underlay_appearances_by_size, "[stored_item.tetris_width]x[stored_item.tetris_height]")
 				if(!bound_underlay)
 					bound_underlay = mutable_appearance(icon = 'modular_septic/icons/hud/quake/storage.dmi', icon_state = "block")
-					bound_underlay.transform = bound_underlay.transform.Scale(stored_item.tetris_width,stored_item.tetris_height)
+					bound_underlay.transform = bound_underlay.transform.Scale(stored_item.tetris_width/world.icon_size,stored_item.tetris_height/world.icon_size)
 					underlay_appearances_by_size["[stored_item.tetris_width]x[stored_item.tetris_height]"] = bound_underlay
 				stored_item.underlays += bound_underlay
-				screen_loc = LAZYACCESSASSOC(master.item_to_coordinates, stored_item, 1)
-				screen_x = text2num(copytext(screen_loc, 1, findtext(screen_loc, ",")))
-				screen_y = text2num(copytext(screen_loc, findtext(screen_loc, ",") + 1))
-				screen_pixel_x = src.screen_pixel_x+(world.icon_size/2)*(stored_item.tetris_width-1)+FLOOR(remaining_x*world.icon_size, 1)
-				screen_pixel_y = src.screen_pixel_y+(world.icon_size/2)*(stored_item.tetris_height-1)+FLOOR(remaining_y*world.icon_size, 1)
+				screen_loc = LAZYACCESSASSOC(master.item_to_tetris_coordinates, stored_item, 1)
+				screen_loc = master.tetris_coordinates_to_screen_loc(screen_loc)
+				screen_x = copytext(screen_loc, 1, findtext(screen_loc, ","))
+				screen_pixel_x = text2num(copytext(screen_x, findtext(screen_x, ":") + 1))
+				screen_pixel_x += src.screen_pixel_x+(world.icon_size/2)*((stored_item.tetris_width/world.icon_size)-1)
+				screen_x = text2num(copytext(screen_x, 1, findtext(screen_x, ":")))
+				screen_y = copytext(screen_loc, findtext(screen_loc, ",") + 1)
+				screen_pixel_y = text2num(copytext(screen_y, findtext(screen_y, ":") + 1))
+				screen_pixel_y += src.screen_pixel_y+(world.icon_size/2)*((stored_item.tetris_height/world.icon_size)-1)
+				screen_y = text2num(copytext(screen_y, 1, findtext(screen_y, ":")))
 				stored_item.screen_loc = "[screen_x]:[screen_pixel_x],[screen_y]:[screen_pixel_y]"
 				stored_item.plane = ABOVE_HUD_PLANE
 				stored_item.maptext = ""
